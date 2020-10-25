@@ -1,0 +1,187 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Tanda Tangan Digital </title>
+        <link href="style.css" rel="stylesheet" type="text/css" />
+    </head>
+    <body>
+
+            <canvas id="kanva" width="1000" height="1000" style="border:solid black 1px;">
+              Your browser does not support canvas element.
+            </canvas>
+
+            <hr>
+
+            <p>
+            Log: <pre id="log" style="border: 1px solid #ccc; text-align: center;"></pre>
+            </p>
+
+            <hr>
+
+            <p style="text-align: center;">
+                    <button id="renderbtn" onclick="render()">Preview dan Insert Ke DB </button> atau
+                    <button onclick="save()" style="padding:10px; text-align:center"> Save Langsung </button>
+            </p>
+
+            <hr>
+
+            <p>
+                <img id="foto" width="100%"/>
+            </p>
+
+<script>
+
+    function startup() {
+        var el = document.getElementById("kanva");
+        el.addEventListener("touchstart", handleStart, false);
+        el.addEventListener("touchend", handleEnd, false);
+        el.addEventListener("touchcancel", handleCancel, false);
+        el.addEventListener("touchmove", handleMove, false);
+    }
+
+document.addEventListener("DOMContentLoaded", startup); var ongoingTouches = [];
+
+    function handleStart(evt) {
+    evt.preventDefault();
+    console.log("touchstart.");
+    var el = document.getElementById("kanva");
+    var ctx = el.getContext("2d");
+    var touches = evt.changedTouches;
+            
+    for (var i = 0; i < touches.length; i++) {
+        console.log("touchstart:" + i + "...");
+        ongoingTouches.push(copyTouch(touches[i]));
+        var color = colorForTouch(touches[i]);
+        ctx.beginPath();
+        ctx.arc(touches[i].pageX, touches[i].pageY, 4, 0, 2 * Math.PI, false);  // a circle at the start
+        ctx.fillStyle = color;
+        ctx.fill();
+        console.log("touchstart:" + i + ".");
+    }
+    }
+
+    function handleMove(evt) {
+    evt.preventDefault();
+    var el = document.getElementById("kanva");
+    var ctx = el.getContext("2d");
+    var touches = evt.changedTouches;
+
+    for (var i = 0; i < touches.length; i++) {
+        var color = colorForTouch(touches[i]);
+        var idx = ongoingTouchIndexById(touches[i].identifier);
+
+        if (idx >= 0) {
+        console.log("continuing touch "+idx);
+        ctx.beginPath();
+        console.log("ctx.moveTo(" + ongoingTouches[idx].pageX + ", " + ongoingTouches[idx].pageY + ");");
+        ctx.moveTo(ongoingTouches[idx].pageX, ongoingTouches[idx].pageY);
+        console.log("ctx.lineTo(" + touches[i].pageX + ", " + touches[i].pageY + ");");
+        ctx.lineTo(touches[i].pageX, touches[i].pageY);
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+
+        ongoingTouches.splice(idx, 1, copyTouch(touches[i]));  // swap in the new touch record
+        console.log(".");
+        } else {
+        console.log("can't figure out which touch to continue");
+        }
+    }
+    }
+        function handleEnd(evt) {
+        evt.preventDefault();
+        log("touchend");
+        var el = document.getElementById("kanva");
+        var ctx = el.getContext("2d");
+        var touches = evt.changedTouches;
+
+        for (var i = 0; i < touches.length; i++) {
+            var color = colorForTouch(touches[i]);
+            var idx = ongoingTouchIndexById(touches[i].identifier);
+
+            if (idx >= 0) {
+            ctx.lineWidth = 4;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(ongoingTouches[idx].pageX, ongoingTouches[idx].pageY);
+            ctx.lineTo(touches[i].pageX, touches[i].pageY);
+            ctx.fillRect(touches[i].pageX - 4, touches[i].pageY - 4, 8, 8);  // and a square at the end
+            ongoingTouches.splice(idx, 1);  // remove it; we're done
+            } else {
+            console.log("can't figure out which touch to end");
+            }
+        }
+    }
+    function handleCancel(evt) {
+    evt.preventDefault();
+    console.log("touchcancel.");
+    var touches = evt.changedTouches;
+    
+    for (var i = 0; i < touches.length; i++) {
+        var idx = ongoingTouchIndexById(touches[i].identifier);
+        ongoingTouches.splice(idx, 1);  // remove it; we're done
+    }
+    }
+
+    function colorForTouch(touch) {
+        var r = touch.identifier % 16;
+        var g = Math.floor(touch.identifier / 3) % 16;
+        var b = Math.floor(touch.identifier / 7) % 16;
+        r = r.toString(16); // make it a hex digit
+        g = g.toString(16); // make it a hex digit
+        b = b.toString(16); // make it a hex digit
+        var color = "#" + r + g + b;
+        console.log("color for touch with identifier " + touch.identifier + " = " + color);
+        return color;
+    }
+
+    function copyTouch({ identifier, pageX, pageY }) {
+    return { identifier, pageX, pageY };
+    } 
+
+    function ongoingTouchIndexById(idToFind) {
+    for (var i = 0; i < ongoingTouches.length; i++) {
+        var id = ongoingTouches[i].identifier;
+        
+        if (id == idToFind) {
+        return i;
+        }
+    }
+    return -1;    // not found
+    }
+    function log(msg) {
+    var p = document.getElementById('log');
+    p.innerHTML = msg + "\n" + p.innerHTML;
+    }
+
+
+
+    function render(){
+                    const myCanvas = document.querySelector("#kanva");
+                    const ctx = myCanvas.toDataURL("image/png");
+                    var image = document.getElementById('foto');
+                    image.src = ctx;
+                    var hr = new XMLHttpRequest();
+                    hr.open("POST", "proses.php", true);
+                    hr.onreadystatechange = function() {
+                        if(hr.readyState == 4 && hr.status == 200) {
+                            alert("Oke");
+                        }
+                    }
+                    hr.send(ctx);
+                }
+
+                function save(){
+                    const myCanvas = document.querySelector("#kanva");
+                    const a = document.createElement('a');
+                    document.body.appendChild(a);
+                    a.href = myCanvas.toDataURL("image/png");
+                    a.download = "canvas.png";
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                }
+
+    </script>
+    </body>
+</html>
